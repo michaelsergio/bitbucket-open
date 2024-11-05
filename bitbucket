@@ -1,0 +1,66 @@
+#!/bin/bash
+# Exit on failure
+set -e
+
+helpFunction()
+{
+   echo ""
+   echo "Usage: $0 [ -n ] [ file ]"
+   echo -e "\t No arguments: Opens the page with open command"
+   echo -e "\t-n No open - Only displays the bitbucket URL"
+   echo -e "\t-h Show Usage"
+   exit 1 # Exit script after printing help
+}
+
+exists()
+{
+  command -v "$1" >/dev/null 2>&1
+}
+
+
+while getopts "nh" opt
+do
+   case "$opt" in
+      n ) noOpen="1" ;;
+      ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
+   esac
+done
+
+# Remove optional args
+shift $(($OPTIND - 1))
+
+file=$1
+
+inside_git_repo="$(git rev-parse --is-inside-work-tree 2>/dev/null)"
+
+if [ -z "$inside_git_repo" ]; then
+  echo "Not inside of Git repository!"
+  exit 1
+fi
+
+
+prefix="$(git rev-parse --show-prefix)"
+branch="$(git rev-parse --abbrev-ref HEAD)"
+url=$(git remote get-url origin | sed \
+    -e 's/:/\//' \
+    -e 's/git@/https:\/\//' \
+    -e 's/.git//' \
+    -e "s|$|/src/$branch$prefix/$file|")
+
+if [ -n "${BITBUCKET_OPEN_CMD}" ]; then
+    OPEN_CMD=$BITBUCKET_OPEN_CMD
+elif exists open ; then
+    OPEN_CMD=open
+elif exists xdg-open ; then
+    OPEN_CMD=xdg-open
+else
+    OPEN_CMD="MISSING"
+fi
+
+if [[ -n $noOpen || $OPEN_CMD == "MISSING" ]] ; then
+    echo "$url"
+else
+    echo "$OPEN_CMD $url"
+    $OPEN_CMD "$url"
+fi
+
